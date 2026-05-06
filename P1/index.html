@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI MEKA LAB - MODUL PDPC RBT T2</title>
+    
+    <!-- TensorFlow & Teachable Machine Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    
+    <!-- Styling & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-main: radial-gradient(circle at 50% 50%, #0f172a 0%, #020617 100%);
+            --neon-blue: #00f2ff;
+        }
+
+        body {
+            background: var(--bg-main);
+            color: white;
+            font-family: 'Rajdhani', sans-serif;
+            min-height: 100vh;
+        }
+
+        .cyber-card {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            border-radius: 28px;
+        }
+
+        .neon-text {
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px rgba(0, 242, 255, 0.4);
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background: var(--neon-blue);
+            box-shadow: 0 0 20px var(--neon-blue);
+            animation: moveScan 2s linear infinite;
+            display: none;
+            z-index: 10;
+        }
+
+        @keyframes moveScan { 0% { top: 0; } 100% { top: 100%; } }
+
+        .block-tag {
+            padding: 6px 16px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+
+        /* Warna Mengikut Elemen Mekatronik */
+        .el-mekanikal { background: #14532d; color: #4ade80; border: 1px solid #4ade80; }
+        .el-elektrik { background: #713f12; color: #facc15; border: 1px solid #facc15; }
+        .el-elektronik { background: #1e3a8a; color: #60a5fa; border: 1px solid #60a5fa; }
+        .el-kawalan { background: #581c87; color: #c084fc; border: 1px solid #c084fc; }
+    </style>
+</head>
+<body class="p-4 md:p-10">
+
+    <div class="max-w-5xl mx-auto">
+        <!-- Header Section -->
+        <header class="text-center mb-10">
+            <img src="logo.png" alt="AI MEKA LAB" class="w-64 md:w-80 mx-auto mb-4 drop-shadow-[0_0_15px_rgba(0,242,255,0.5)]" onerror="this.src='https://via.placeholder.com/300x120/000000/00f2ff?text=AI+MEKA+LAB'">
+            <h1 class="neon-text text-xl md:text-2xl tracking-[0.3em] uppercase">MODUL 1: PENEROKAAN MEKATRONIK</h1>
+            <p id="status" class="text-xs text-cyan-500 mt-2 animate-pulse font-bold tracking-widest uppercase">Menghubungkan Kecerdasan Buatan...</p>
+        </header>
+
+        <main class="grid lg:grid-cols-2 gap-12">
+            <!-- Left Side: Vision & Input -->
+            <div class="space-y-4">
+                <div id="display-container" class="relative aspect-square rounded-[2.5rem] overflow-hidden cyber-card flex items-center justify-center border-2 border-cyan-900 bg-black">
+                    <div id="scan-line" class="scan-line"></div>
+                    
+                    <video id="webcam" autoplay playsinline class="hidden w-full h-full object-cover"></video>
+                    <img id="image-preview" class="hidden w-full h-full object-cover">
+                    
+                    <div id="placeholder" class="text-center opacity-20">
+                        <i class="fas fa-camera text-7xl mb-4"></i>
+                        <p class="text-xs uppercase tracking-widest">Sedia untuk Imbasan</p>
+                    </div>
+                    
+                    <!-- Analysis Loading -->
+                    <div id="loading" class="absolute inset-0 bg-black/80 hidden flex-col items-center justify-center z-20">
+                        <div class="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p class="text-xs neon-text tracking-widest">MENGANALISIS DATA...</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="setupWebcam()" class="bg-gray-800 hover:bg-gray-700 text-white py-4 rounded-2xl text-xs font-bold uppercase transition shadow-lg">
+                        <i class="fas fa-video mr-2 text-cyan-400"></i> Kamera
+                    </button>
+                    <label class="bg-gray-800 hover:bg-gray-700 text-white py-4 rounded-2xl text-xs font-bold uppercase text-center cursor-pointer transition shadow-lg flex items-center justify-center">
+                        <i class="fas fa-upload mr-2 text-indigo-400"></i> Muat Naik
+                        <input type="file" class="hidden" accept="image/*" onchange="handleFileUpload(event)">
+                    </label>
+                </div>
+                <button id="btn-scan" onclick="predict()" disabled class="w-full bg-cyan-500 text-black font-black py-5 rounded-2xl uppercase tracking-widest text-lg shadow-[0_0_25px_rgba(0,242,255,0.3)] transition-all active:scale-95 disabled:bg-gray-700">
+                    IMBAS KOMPONEN
+                </button>
+            </div>
+
+            <!-- Right Side: Intelligent Insights -->
+            <div id="result-view" class="space-y-6">
+                <!-- Result Card -->
+                <div id="result-card" class="cyber-card p-8 hidden border-l-[10px] border-l-cyan-500 transition-all duration-700">
+                    <div class="mb-6">
+                        <p class="text-[10px] uppercase text-gray-500 font-bold mb-1 tracking-widest">Nama Komponen:</p>
+                        <h2 id="res-name" class="neon-text text-4xl uppercase tracking-tighter">-</h2>
+                    </div>
+
+                    <div class="mb-8">
+                        <p class="text-[10px] uppercase text-gray-500 font-bold mb-2 tracking-widest">Elemen Mekatronik:</p>
+                        <span id="res-element" class="block-tag">-</span>
+                    </div>
+
+                    <div class="bg-white/5 p-6 rounded-2xl border border-white/5 mb-8">
+                        <p class="text-[10px] uppercase text-cyan-500 font-bold mb-3 tracking-widest">Fungsi Jawapan:</p>
+                        <p id="res-func" class="text-md leading-relaxed text-gray-100 font-medium italic">-</p>
+                    </div>
+
+                    <div class="flex justify-between items-center bg-black/40 p-5 rounded-2xl border border-white/10">
+                        <div>
+                            <p class="text-[10px] uppercase text-gray-500 font-bold mb-1 tracking-widest">Bahagian Sistem:</p>
+                            <p id="res-system" class="text-2xl font-black uppercase tracking-[0.2em] text-white">-</p>
+                        </div>
+                        <div class="text-right">
+                            <p id="res-prob" class="text-[10px] text-gray-600 font-mono">Confidence: 0%</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Card -->
+                <div class="cyber-card p-6 border-l-4 border-l-yellow-500 bg-yellow-500/5">
+                    <h3 class="text-xs font-bold text-yellow-500 uppercase mb-3 tracking-widest">Aktiviti PdPc:</h3>
+                    <p class="text-sm text-gray-300 leading-relaxed mb-4">
+                        Gunakan aplikasi ini untuk mengenal pasti komponen mekatronik dan lengkapkan lembaran kerja anda berdasarkan maklumat yang dipaparkan.
+                    </p>
+                    <button onclick="location.reload()" class="text-[10px] text-gray-500 hover:text-white uppercase font-bold tracking-widest transition">
+                        <i class="fas fa-undo mr-1"></i> Mulakan Semula
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="mt-20 mb-10 text-center border-t border-white/5 pt-8 opacity-60">
+            <p class="neon-text text-sm tracking-[0.5em]">AI MEKA LAB 2026 . CIKGU ZIHAN</p>
+        </footer>
+    </div>
+
+    <script>
+        // AUTO-CONNECTION LINK
+        const AUTO_MODEL_URL = "https://teachablemachine.withgoogle.com/models/OltcaXEyn/"; 
+        
+        let model, webcam;
+
+        // JAWAPAN TEPAT BERDASARKAN BUKU TEKS RBT T2 (MODUL 1)
+        const rbtDatabase = {
+            "Gear": {
+                elemen: "Mekanikal",
+                func: "Berfungsi untuk mengurangkan atau meningkatkan halaju dan menambah daya kilas (torque) motor.",
+                system: "Output",
+                css: "el-mekanikal"
+            },
+            "Takal": {
+                elemen: "Mekanikal",
+                func: "Memindahkan putaran yang dihasilkan oleh motor kepada tali sawat untuk menggerakkan dram atau pintu.",
+                system: "Output",
+                css: "el-mekanikal"
+            },
+            "Tali Sawat": {
+                elemen: "Mekanikal",
+                func: "Menghubungkan takal motor dengan takal beban untuk memindahkan putaran.",
+                system: "Output",
+                css: "el-mekanikal"
+            },
+            "Motor AT": {
+                elemen: "Elektrik",
+                func: "Menukarkan tenaga elektrik kepada tenaga kinetik untuk menghasilkan putaran pada roda atau gear.",
+                system: "Output",
+                css: "el-elektrik"
+            },
+            "Motor AU": {
+                elemen: "Elektrik",
+                func: "Membekalkan tenaga elektrik kepada sistem kawalan motor dan menggerakkan dram mesin basuh.",
+                system: "Output",
+                css: "el-elektrik"
+            },
+            "Bateri": {
+                elemen: "Elektrik",
+                func: "Bertindak sebagai sumber tenaga elektrik bagi keseluruhan sistem.",
+                system: "Input",
+                css: "el-elektrik"
+            },
+            "Pengubah": {
+                elemen: "Elektrik",
+                func: "Berfungsi untuk menaikkan atau menurunkan voltan bekalan arus ulang-alik.",
+                system: "Input",
+                css: "el-elektrik"
+            },
+            "Mikropengawal": {
+                elemen: "Kawalan & Pengaturcaraan",
+                func: "Berfungsi untuk memproses isyarat input dan mengawal halaju serta arah putaran motor AT.",
+                system: "Proses",
+                css: "el-kawalan"
+            },
+            "Papan Mikropengawal": {
+                elemen: "Kawalan & Pengaturcaraan",
+                func: "Memproses isyarat daripada penderia dan menghantar arahan kepada pemacu motor.",
+                system: "Proses",
+                css: "el-kawalan"
+            },
+            "Panel Kawalan": {
+                elemen: "Kawalan & Pengaturcaraan",
+                func: "Memberikan arahan kepada sistem seperti ON/OFF, START, atau PAUSE melalui sentuhan pengguna.",
+                system: "Input",
+                css: "el-kawalan"
+            },
+            "Penderia Gerakan": {
+                elemen: "Elektronik",
+                func: "Mengesan sebarang pergerakan objek dan memberikan isyarat input kepada sistem kawalan.",
+                system: "Input",
+                css: "el-elektronik"
+            },
+            "Sensor": {
+                elemen: "Elektronik",
+                func: "Mengesan perubahan input persekitaran dan menghantar isyarat elektrik kepada mikropengawal.",
+                system: "Input",
+                css: "el-elektronik"
+            },
+            "Litar Pemacu Motor": {
+                elemen: "Elektronik",
+                func: "Menerima isyarat input dan menukarkannya kepada isyarat elektrik bagi memacu motor AT.",
+                system: "Output",
+                css: "el-elektronik"
+            },
+            "PCB": {
+                elemen: "Elektronik",
+                func: "Papan litar tercetak yang menghubungkan komponen elektronik untuk mengawal operasi sistem.",
+                system: "Proses",
+                css: "el-elektronik"
+            },
+            "Dram": {
+                elemen: "Mekanikal",
+                func: "Bertindak sebagai bekas untuk memutar pakaian semasa proses basuhan dijalankan.",
+                system: "Output",
+                css: "el-mekanikal"
+            },
+            "Galas": {
+                elemen: "Mekanikal",
+                func: "Mengurangkan geseran dan melancarkan pergerakan pada komponen berpusing.",
+                system: "Output",
+                css: "el-mekanikal"
+            }
+        };
+
+        window.onload = initAI;
+
+        async function initAI() {
+            try {
+                model = await tmImage.load(AUTO_MODEL_URL + "model.json", AUTO_MODEL_URL + "metadata.json");
+                document.getElementById('status').innerText = "AI SIAP SEDIA UNTUK PDPC ✅";
+                document.getElementById('btn-scan').disabled = false;
+            } catch (e) {
+                document.getElementById('status').innerText = "RALAT HUBUNGAN AI ❌";
+            }
+        }
+
+        async function setupWebcam() {
+            document.getElementById('placeholder').classList.add('hidden');
+            document.getElementById('image-preview').classList.add('hidden');
+            document.getElementById('webcam').classList.remove('hidden');
+            webcam = new tmImage.Webcam(500, 500, true);
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+        }
+
+        async function loop() { webcam.update(); window.requestAnimationFrame(loop); }
+
+        function handleFileUpload(event) {
+            if(webcam) { webcam.stop(); webcam = null; }
+            const reader = new FileReader();
+            reader.onload = () => {
+                const img = document.getElementById('image-preview');
+                img.src = reader.result;
+                img.classList.remove('hidden');
+                document.getElementById('webcam').classList.add('hidden');
+                document.getElementById('placeholder').classList.add('hidden');
+            }
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        async function predict() {
+            if(!model) return;
+            
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('scan-line').style.display = 'block';
+
+            setTimeout(async () => {
+                let prediction;
+                if(!document.getElementById('webcam').classList.contains('hidden')) {
+                    prediction = await model.predict(webcam.canvas);
+                } else {
+                    prediction = await model.predict(document.getElementById('image-preview'));
+                }
+
+                let highest = { className: "", probability: 0 };
+                prediction.forEach(p => { if(p.probability > highest.probability) highest = p; });
+
+                const data = rbtDatabase[highest.className] || { 
+                    elemen: "Mekanikal / Elektrik", 
+                    func: "Komponen yang membantu operasi sistem mekatronik.", 
+                    system: "Output",
+                    css: "el-mekanikal"
+                };
+
+                // Voice Output (Nama Komponen Sahaja)
+                const speech = new SpeechSynthesisUtterance(highest.className);
+                speech.lang = "ms-MY";
+                window.speechSynthesis.speak(speech);
+
+                // Update UI
+                const resCard = document.getElementById('result-card');
+                resCard.classList.remove('hidden');
+                resCard.style.borderLeftColor = getComputedStyle(document.documentElement).getPropertyValue('--neon-blue');
+                
+                document.getElementById('res-name').innerText = highest.className;
+                document.getElementById('res-func').innerText = data.func;
+                document.getElementById('res-system').innerText = data.system;
+                document.getElementById('res-prob').innerText = "Confidence: " + (highest.probability * 100).toFixed(0) + "%";
+                
+                const elTag = document.getElementById('res-element');
+                elTag.innerText = data.elemen;
+                elTag.className = "block-tag " + data.css;
+
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('scan-line').style.display = 'none';
+                resCard.scrollIntoView({ behavior: 'smooth' });
+            }, 1500);
+        }
+    </script>
+</body>
+</html>
